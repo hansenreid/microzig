@@ -8,6 +8,7 @@ chips: struct {
     nrf52832: *const microzig.Target,
     nrf52833: *const microzig.Target,
     nrf52840: *const microzig.Target,
+    nrf54l15: *const microzig.Target,
 },
 
 boards: struct {
@@ -15,6 +16,7 @@ boards: struct {
         nrf52840_dongle: *const microzig.Target,
         nrf52840_mdk: *const microzig.Target,
         pca10040: *const microzig.Target,
+        nrf54l15_dk: *microzig.Target,
     },
     bbc: struct {
         microbit_v1: *const microzig.Target,
@@ -142,12 +144,43 @@ pub fn init(dep: *std.Build.Dependency) Self {
         .hal = hal,
     };
 
+    const chip_nrf54l15: microzig.Target = .{
+        .dep = dep,
+        .preferred_binary_format = .elf,
+        .zig_target = .{
+            .cpu_arch = .thumb,
+            .cpu_model = .{ .explicit = &std.Target.arm.cpu.cortex_m4 },
+            .os_tag = .freestanding,
+            .abi = .eabi,
+        },
+        .chip = .{
+            .name = "nrf54l15",
+            .url = "https://www.nordicsemi.com/Products/nRF54L15",
+            .register_definition = .{
+                .svd = nrfx.path("mdk/nrf54l15_application.svd"),
+            },
+            .memory_regions = &.{
+                .{ .tag = .flash, .offset = 0x00000000, .length = 0x100000, .access = .rx },
+                // TODO: use code ram for `.ram_text`
+                .{ .tag = .ram, .offset = 0x20000000, .length = 0x40000, .access = .rwx },
+
+                // EXTFLASH
+                .{ .tag = .flash, .offset = 0x12000000, .length = 0x8000000, .access = .rx },
+
+                // CODE_RAM
+                .{ .name = "code_ram", .offset = 0x800000, .length = 0x40000, .access = .x },
+            },
+        },
+        .hal = hal,
+    };
+
     return .{
         .chips = .{
             .nrf51822 = chip_nrf51822.derive(.{}),
             .nrf52832 = chip_nrf52832.derive(.{}),
             .nrf52833 = chip_nrf52833.derive(.{}),
             .nrf52840 = chip_nrf52840.derive(.{}),
+            .nrf54l15 = chip_nrf54l15.derive(.{}),
         },
         .boards = .{
             .nordic = .{
@@ -170,6 +203,13 @@ pub fn init(dep: *std.Build.Dependency) Self {
                         .name = "PCA10040",
                         .url = "https://www.nordicsemi.com/Products/Development-hardware/nRF52-DK",
                         .root_source_file = b.path("src/boards/pca10040.zig"),
+                    },
+                }),
+                .nrf54l15_dk = chip_nrf52840.derive(.{
+                    .board = .{
+                        .name = "nrf54l15 DK",
+                        .url = "https://www.nordicsemi.com/Products/Development-hardware/nRF54L15-DK",
+                        .root_source_file = b.path("src/boards/nrf52840-dongle.zig"),
                     },
                 }),
             },
