@@ -25,15 +25,16 @@ const log = std.log.scoped(.gen);
 
 pub const ToZigOptions = struct {};
 
-pub fn to_zig(db: *Database, dir: Directory, opts: ToZigOptions) !void {
+pub fn to_zig(db: *Database, io: std.Io, dir: Directory, opts: ToZigOptions) !void {
     var arena = std.heap.ArenaAllocator.init(db.gpa);
     defer arena.deinit();
 
-    try write_device_files(db, arena.allocator(), dir, opts);
-    try write_types_files(db, arena.allocator(), dir, opts);
+    try write_device_files(io, db, arena.allocator(), dir, opts);
+    try write_types_files(db, io, arena.allocator(), dir, opts);
 }
 
 fn write_device_files(
+    io: std.Io,
     db: *Database,
     arena: Allocator,
     dir: Directory,
@@ -41,7 +42,7 @@ fn write_device_files(
 ) !void {
     const devices = try db.get_devices(arena);
     for (devices) |device| {
-        write_device_file(db, arena, &device, dir, opts) catch |err| {
+        write_device_file(io, db, arena, &device, dir, opts) catch |err| {
             log.warn("failed to write device: {}", .{err});
         };
     }
@@ -61,6 +62,7 @@ fn write_imports(opts: ToZigOptions, types_public: bool, types_path: []const u8,
 }
 
 fn write_device_file(
+    io: std.Io,
     db: *Database,
     arena: Allocator,
     device: *const Database.Device,
@@ -149,19 +151,19 @@ fn write_device_file(
     try ast.render(arena, &rendered_buffer.writer, fixups);
 
     const filename = try std.fmt.allocPrint(arena, "{s}.zig", .{device.name});
-    try dir.create_file(filename, rendered_buffer.written());
+    try dir.create_file(io, filename, rendered_buffer.written());
 }
 
-fn write_types_files(db: *Database, arena: Allocator, dir: Directory, opts: ToZigOptions) !void {
-    try dir.create_file("types.zig",
+fn write_types_files(db: *Database, io: std.Io, arena: Allocator, dir: Directory, opts: ToZigOptions) !void {
+    try dir.create_file(io, "types.zig",
         \\pub const peripherals = @import("types/peripherals.zig");
         \\
     );
 
-    try write_peripherals_files(db, arena, dir, opts);
+    try write_peripherals_files(db, io, arena, dir, opts);
 }
 
-fn write_peripherals_files(db: *Database, arena: Allocator, dir: Directory, opts: ToZigOptions) !void {
+fn write_peripherals_files(db: *Database, io: std.Io, arena: Allocator, dir: Directory, opts: ToZigOptions) !void {
     var index_content: std.Io.Writer.Allocating = .init(arena);
     const index_writer = &index_content.writer;
 
@@ -205,7 +207,7 @@ fn write_peripherals_files(db: *Database, arena: Allocator, dir: Directory, opts
         const fixups: std.zig.Ast.Render.Fixups = .{};
         try ast.render(arena, &rendered_buffer.writer, fixups);
 
-        try dir.create_file(path, rendered_buffer.written());
+        try dir.create_file(io, path, rendered_buffer.written());
 
         if (try db.struct_is_zero_sized(arena, peripheral.struct_id)) {
             try index_writer.print(
@@ -227,7 +229,7 @@ fn write_peripherals_files(db: *Database, arena: Allocator, dir: Directory, opts
         }
     }
 
-    try dir.create_file("types/peripherals.zig", index_content.written());
+    try dir.create_file(io, "types/peripherals.zig", index_content.written());
 }
 
 pub fn write_file_comment(allocator: Allocator, comment: []const u8, writer: *std.Io.Writer) !void {
