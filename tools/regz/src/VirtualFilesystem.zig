@@ -68,7 +68,7 @@ pub fn dir(fs: *VirtualFilesystem) Directory {
 }
 
 pub fn get_file(fs: *VirtualFilesystem, path: []const u8) !?ID {
-    var components: std.ArrayList([]const u8) = .{};
+    var components: std.ArrayList([]const u8) = .empty;
     defer components.deinit(fs.gpa);
 
     var it = std.mem.tokenizeScalar(u8, path, '/');
@@ -114,7 +114,7 @@ pub const Entry = struct {
 };
 
 pub fn get_children(fs: *VirtualFilesystem, allocator: Allocator, id: ID) ![]const Entry {
-    var ret: std.ArrayList(Entry) = .{};
+    var ret: std.ArrayList(Entry) = .empty;
     for (fs.hierarchy.keys(), fs.hierarchy.values()) |child_id, parent_id| {
         if (parent_id == id)
             try ret.append(allocator, .{
@@ -188,10 +188,11 @@ fn get_child(fs: *VirtualFilesystem, parent: ID, component: []const u8) ?ID {
     } else null;
 }
 
-fn create_file_fn(ctx: *anyopaque, path: []const u8, content: []const u8) Directory.CreateFileError!void {
+fn create_file_fn(ctx: *anyopaque, io: std.Io, path: []const u8, content: []const u8) Directory.CreateFileError!void {
+    _ = io;
     const fs: *VirtualFilesystem = @ptrCast(@alignCast(ctx));
 
-    var components: std.ArrayList([]const u8) = .{};
+    var components: std.ArrayList([]const u8) = .empty;
     defer components.deinit(fs.gpa);
 
     var it = std.mem.tokenizeScalar(u8, path, '/');
